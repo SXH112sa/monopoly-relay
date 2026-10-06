@@ -1,0 +1,9 @@
+{
+  "name": "monopoly-room-relay",
+  "version": "1.0.0",
+  "description": "Tiny WebSocket room relay for the Monopoly online mod (2 players per room).",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "^8.18.0" }
+}

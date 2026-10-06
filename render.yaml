@@ -1,0 +1,13 @@
+# Render blueprint for the Monopoly room relay (Node web service).
+# Deploy: push this folder to a Git repo, then in Render: New > Blueprint (or New > Web Service, Node, start: node server.js).
+services:
+  - type: web
+    name: monopoly-room-relay
+    runtime: node
+    plan: free            # free works for testing; paid avoids the ~30-60 s cold start after idle
+    buildCommand: npm install --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 22
