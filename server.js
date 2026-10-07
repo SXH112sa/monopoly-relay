@@ -125,6 +125,15 @@ wss.on('connection', (ws) => {
         } else { m.from = ws.seat; send(room.seats[0].ws, m); }
         break;
       }
+      case 'kick': {                                   // host removes a player (setup screen)
+        if (!room || ws.seat !== 0) return;
+        const seat = Number(m.seat); const t = room.seats[seat];
+        if (!(seat > 0 && t)) return;
+        const tw = t.ws; room.seats[seat] = null;
+        if (tw) { tw.room = null; send(tw, { t: 'kicked' }); try { tw.close(); } catch (e) {} }
+        send(ws, { t: 'peer_left', seat, names: names(room) });
+        break;
+      }
       case 'leave': leave(ws, true); break;
       case 'ping': send(ws, { t: 'pong' }); break;
     }
