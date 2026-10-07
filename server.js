@@ -57,7 +57,12 @@ function leave(ws, final) {
   const r = rooms.get(code); ws.room = null; if (!r) return;
   const seat = ws.seat; const s = r.seats[seat];
   if (!s || s.ws !== ws) return;
-  if (seat === 0) { closeRoom(code, 'host_left'); return; }
+  if (seat === 0) {
+    if (final || r.open) { closeRoom(code, 'host_left'); return; }       // lobby: the room dies with its host
+    s.ws = null; s.gone = Date.now();                                     // match running: give the host a chance to come back
+    r.seats.forEach((g, i) => { if (i > 0 && g && g.ws) send(g.ws, { t: 'host_away' }); });
+    return;
+  }
   if (final || r.open) { r.seats[seat] = null; }            // lobby: seat is simply freed
   else { s.ws = null; s.gone = Date.now(); }                // match running: keep the seat for a rejoin
   send(r.seats[0] && r.seats[0].ws, { t: 'peer_left', seat, names: names(r) });
@@ -106,7 +111,8 @@ wss.on('connection', (ws) => {
         if (!s || s.token !== m.token || s.ws) return send(ws, { t: 'error', m: 'cannot rejoin' });
         s.ws = ws; s.gone = null; ws.room = String(m.code); ws.seat = seat;
         send(ws, { t: 'joined', code: String(m.code), seat, token: s.token, rejoin: true, n: count(r), names: names(r) });
-        send(r.seats[0].ws, { t: 'peer_back', seat });
+        if (seat === 0) r.seats.forEach((g, i) => { if (i > 0 && g && g.ws) send(g.ws, { t: 'host_back' }); });
+        else send(r.seats[0].ws, { t: 'peer_back', seat });
         if (s.queue) { for (const q of s.queue) send(ws, q); s.queue = null; }      // replay what the host sent meanwhile, in order
         break;
       }
@@ -122,7 +128,10 @@ wss.on('connection', (ws) => {
           const deliver = (s) => { if (!s) return; if (s.ws) send(s.ws, m); else if (s.gone) { (s.queue = s.queue || []).push(m); if (s.queue.length > 5000) s.queue.shift(); } };
           if (m.to !== undefined && m.to !== null) deliver(room.seats[m.to]);
           else room.seats.forEach((s, i) => { if (i > 0) deliver(s); });
-        } else { m.from = ws.seat; send(room.seats[0].ws, m); }
+        } else {
+          m.from = ws.seat; const hs = room.seats[0];
+          if (hs.ws) send(hs.ws, m); else if (hs.gone) { (hs.queue = hs.queue || []).push(m); if (hs.queue.length > 5000) hs.queue.shift(); }
+        }
         break;
       }
       case 'kick': {                                   // host removes a player (setup screen)
@@ -148,7 +157,7 @@ setInterval(() => {
   for (const [c, r] of rooms) {
     if (now - r.last > ROOM_IDLE_MS) { closeRoom(c, 'host_left'); continue; }
     r.seats.forEach((s, i) => {                       // drop seats whose rejoin window expired
-      if (s && s.gone && now - s.gone > REJOIN_GRACE_MS) { r.seats[i] = null; send(r.seats[0].ws, { t: 'peer_gone', seat: i }); }
+      if (s && s.gone && now - s.gone > REJOIN_GRACE_MS) { if (i === 0) { closeRoom(c, 'host_left'); return; } r.seats[i] = null; send(r.seats[0].ws, { t: 'peer_gone', seat: i }); }
     });
   }
 }, 15000);
