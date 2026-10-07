@@ -108,7 +108,8 @@ wss.on('connection', (ws) => {
       case 'rejoin': {
         const r = rooms.get(String(m.code || '')); const seat = Number(m.seat);
         const s = r && r.seats[seat];
-        if (!s || s.token !== m.token || s.ws) return send(ws, { t: 'error', m: 'cannot rejoin' });
+        if (!s || s.token !== m.token) return send(ws, { t: 'error', m: 'cannot rejoin' });
+        if (s.ws) { const old = s.ws; old.room = null; s.ws = null; try { old.terminate(); } catch (e) {} }     // the old connection is dead but not noticed yet: the token proves who is calling
         s.ws = ws; s.gone = null; ws.room = String(m.code); ws.seat = seat;
         send(ws, { t: 'joined', code: String(m.code), seat, token: s.token, rejoin: true, n: count(r), names: names(r) });
         if (seat === 0) r.seats.forEach((g, i) => { if (i > 0 && g && g.ws) send(g.ws, { t: 'host_back' }); });
